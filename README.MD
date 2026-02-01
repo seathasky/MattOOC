@@ -1,4 +1,4 @@
-# MattOOC - Out of Combat Spell Reminder
+# Matt's OOC - Out of Combat Spell Reminder
 
 ![Preview](https://raw.githubusercontent.com/seathasky/MattOOC/refs/heads/main/preview.png)
 
