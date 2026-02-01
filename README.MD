@@ -9,3 +9,5 @@ Track any buff or pet by name or spell ID, customize colors and effects, positio
 and save different setups per character. 
 
 Type `/mattooc` to configure or click the minimap icon.
+
+https://www.curseforge.com/wow/addons/mattooc
