@@ -10,4 +10,4 @@ and save different setups per character.
 
 Type `/mattooc` to configure or click the minimap icon.
 
-https://www.curseforge.com/wow/addons/mattooc
+Download it on Curseforge: https://www.curseforge.com/wow/addons/mattooc
