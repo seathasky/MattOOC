@@ -4,8 +4,7 @@
 
 MattOOC displays on-screen reminders when you're missing important buffs or don't have your pet summoned. 
 
-> [!BLIZZARD API RESTRICTIONS]
-**Restrictions:**<br>
+> [!CAUTION]
 Reminders only appear **out of combat** due to API restriction in Midnight. They also will only work before a M+ key has started and not during.
 
 Track any buff or pet by name or spell ID, customize colors and effects, position each reminder independently, 
