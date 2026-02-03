@@ -5,7 +5,9 @@ local ADDON_NAME = "MattOOC"
 
 -- State tracking
 local inCombat = false
+local keystoneActive = false
 local ConfigFrame = nil
+local MythicPlusNotificationFrame = nil
 local spellRows = {}
 local spellFrames = {} -- Individual frames per spell ID
 local isUnlocked = false
@@ -177,6 +179,9 @@ end
 
 -- Check if a specific spell is missing
 local function IsSpellMissing(spellID, data, checkRestingOverride)
+    -- Never check auras during combat to avoid protected function errors
+    if InCombatLockdown() then return false end
+    
     if not data.enabled then return false end
     
     local isResting = IsResting()
@@ -189,25 +194,46 @@ local function IsSpellMissing(spellID, data, checkRestingOverride)
     if data.isPet then
         return not HasPet()
     else
-        -- Check for buff by name
-        local spellName = data.name
-        local hasBuff = C_UnitAuras.GetAuraDataBySpellName("player", spellName, "HELPFUL")
+        local hasBuff = false
         
-        if not hasBuff then
-            hasBuff = C_UnitAuras.GetAuraDataBySpellName("player", spellName, "HELPFUL|PLAYER")
+        -- METHOD 1: Primary method - GetPlayerAuraBySpellID (most reliable in instances)
+        local success, auraData = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
+        if success and auraData then
+            hasBuff = true
         end
         
-        -- Fallback: iterate through auras
-        if not hasBuff then
-            local function CheckAura(aura)
-                if aura then
-                    if aura.spellId == spellID or aura.name == spellName then
+        -- METHOD 2: Backup - Use AuraUtil.ForEachAura for broader compatibility
+        if not hasBuff and AuraUtil and AuraUtil.ForEachAura then
+            local function checkAura(auraData)
+                -- Check by spell ID first (most accurate)
+                if auraData.spellId and auraData.spellId == spellID then
+                    hasBuff = true
+                    return true -- stop iteration
+                end
+                -- Check by name as fallback (case-insensitive)
+                if auraData.name and data.name then
+                    local auraName = auraData.name:lower()
+                    local dataName = data.name:lower()
+                    if auraName == dataName or auraName:find(dataName, 1, true) or dataName:find(auraName, 1, true) then
                         hasBuff = true
-                        return true
+                        return true -- stop iteration
                     end
                 end
+                return false
             end
-            AuraUtil.ForEachAura("player", "HELPFUL", nil, CheckAura)
+            
+            -- Use pcall to handle any API errors in instances
+            pcall(function()
+                AuraUtil.ForEachAura("player", "HELPFUL", nil, checkAura, true)
+            end)
+        end
+        
+        -- METHOD 3: Final fallback - GetAuraDataBySpellName
+        if not hasBuff and data.name and data.name ~= "" then
+            local success2, auraData2 = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", data.name, "HELPFUL")
+            if success2 and auraData2 then
+                hasBuff = true
+            end
         end
         
         return not hasBuff
@@ -377,6 +403,12 @@ local function UpdateSpellFrame(spellID)
     -- Don't update while unlocked
     if isUnlocked then return end
     
+    -- Hide during active mythic+ keystone
+    if keystoneActive then
+        frame:Hide()
+        return
+    end
+    
     -- Hide in combat
     if inCombat then
         frame:Hide()
@@ -386,7 +418,32 @@ local function UpdateSpellFrame(spellID)
     local inInstance, instanceType = IsInInstance()
     local inValidInstance = inInstance and (instanceType == "party" or instanceType == "raid" or instanceType == "scenario")
     
-    if IsSpellMissing(spellID, data, inValidInstance) then
+    -- Use Blizzard's official API to detect Mythic+ dungeons
+    local isMythicPlus = false
+    -- ONLY check for M+ in party dungeons, NEVER in raids
+    if inInstance and instanceType == "party" then
+        -- Primary check: GetActiveChallengeMapID returns mapID if in active M+, nil otherwise
+        if C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
+            local activeChallengeMapID = C_ChallengeMode.GetActiveChallengeMapID()
+            isMythicPlus = (activeChallengeMapID ~= nil)
+        else
+            -- Fallback: Check keystone info
+            if C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo then
+                local activeKeystoneLevel = C_ChallengeMode.GetActiveKeystoneInfo()
+                isMythicPlus = (activeKeystoneLevel and activeKeystoneLevel > 0)
+            else
+                -- Final fallback for older clients
+                local _, _, difficulty = GetInstanceInfo()
+                isMythicPlus = (difficulty == 8 or difficulty == 23) -- Mythic/Mythic+
+            end
+        end
+    end
+    -- Explicit safety check: NEVER consider raids as M+
+    if instanceType == "raid" then
+        isMythicPlus = false
+    end
+    
+    if IsSpellMissing(spellID, data, inValidInstance or isMythicPlus) then
         local scale = data.scale or 1.0
         local fontSize = math.floor(28 * scale)
         local iconSize = math.floor(32 * scale)
@@ -439,8 +496,101 @@ local function UpdateSpellFrame(spellID)
     end
 end
 
+-- Update M+ notification visibility
+local function UpdateMythicPlusNotification()
+    local inInstance, instanceType = IsInInstance()
+    local frame = CreateMythicPlusNotificationFrame()
+    
+    -- Only show in dungeons (party instances)
+    if inInstance and instanceType == "party" and not keystoneActive then
+        frame:Show()
+    else
+        frame:Hide()
+    end
+end
+
+-- Create M+ notification frame
+local function CreateMythicPlusNotificationFrame()
+    if MythicPlusNotificationFrame then return MythicPlusNotificationFrame end
+    
+    local frame = CreateFrame("Frame", "MattOOCMythicPlusNotification", UIParent, "BackdropTemplate")
+    frame:SetSize(500, 40)
+    frame:SetPoint("TOP", UIParent, "TOP", 0, -80)
+    frame:SetFrameStrata("HIGH")
+    frame:Hide()
+    
+    -- Professional backdrop
+    frame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    frame:SetBackdropColor(0.05, 0.05, 0.1, 0.95)
+    frame:SetBackdropBorderColor(0.3, 0.4, 0.6, 1)
+    
+    -- Icon
+    local icon = frame:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(24, 24)
+    icon:SetPoint("LEFT", frame, "LEFT", 10, 0)
+    icon:SetTexture("Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew")
+    icon:SetVertexColor(0.4, 0.6, 1, 1)
+    
+    -- Text
+    local text = frame:CreateFontString(nil, "OVERLAY")
+    text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+    text:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    text:SetPoint("RIGHT", frame, "RIGHT", -35, 0)
+    text:SetTextColor(0.9, 0.9, 1, 1)
+    text:SetJustifyH("LEFT")
+    text:SetText("MattOOC: Buff tracking will be disabled when M+ keystone starts due to WoW API limitations.")
+    
+    -- Close button
+    local closeBtn = CreateFrame("Button", nil, frame)
+    closeBtn:SetSize(20, 20)
+    closeBtn:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+    closeBtn:SetNormalTexture("Interface\\Buttons\\UI-StopButton")
+    closeBtn:SetHighlightTexture("Interface\\Buttons\\UI-StopButton")
+    closeBtn:GetHighlightTexture():SetAlpha(0.4)
+    closeBtn:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+    closeBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Dismiss notification", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    closeBtn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    MythicPlusNotificationFrame = frame
+    return frame
+end
+
+-- Update M+ notification visibility
+local function UpdateMythicPlusNotification()
+    local inInstance, instanceType = IsInInstance()
+    local frame = CreateMythicPlusNotificationFrame()
+    
+    -- Only show in Mythic/Mythic+ dungeons
+    if inInstance and instanceType == "party" then
+        local _, _, difficulty = GetInstanceInfo()
+        -- Difficulty 8 = Mythic, 23 = Mythic+
+        if (difficulty == 8 or difficulty == 23) and not keystoneActive then
+            frame:Show()
+        else
+            frame:Hide()
+        end
+    else
+        frame:Hide()
+    end
+end
+
 -- Update all spell frames
 local function UpdateWarningDisplay()
+    -- Double-check we're not in combat before updating
+    if InCombatLockdown() then return end
+    
     for spellID, _ in pairs(MattOOCDB.trackedSpells) do
         UpdateSpellFrame(spellID)
     end
@@ -986,6 +1136,57 @@ SlashCmdList["MATTOOC"] = function(msg)
         print("  inCombat: " .. tostring(inCombat))
         print("  IsResting: " .. tostring(IsResting()))
         print("  HasPet: " .. tostring(HasPet()))
+        
+        -- Mythic+ debugging
+        local inInstance, instanceType = IsInInstance()
+        print("  InInstance: " .. tostring(inInstance) .. ", Type: " .. tostring(instanceType))
+        if inInstance then
+            local name, instanceType2, difficulty, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceID, instanceGroupSize, LfgDungeonID = GetInstanceInfo()
+            print("  Instance: " .. tostring(name) .. ", Difficulty: " .. tostring(difficulty) .. " (" .. tostring(difficultyName) .. ")")
+            
+            if C_MythicPlus and C_MythicPlus.IsMythicPlusActive then
+                local isMythicPlusActive = C_MythicPlus.IsMythicPlusActive()
+                print("  IsMythicPlusActive: " .. tostring(isMythicPlusActive))
+            else
+                print("  IsMythicPlusActive: API not available")
+            end
+            
+            -- Check for active challenge mode (most reliable for M+)
+            if C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
+                local activeChallengeMapID = C_ChallengeMode.GetActiveChallengeMapID()
+                print("  ActiveChallengeMapID: " .. tostring(activeChallengeMapID))
+            else
+                print("  ActiveChallengeMapID API: not available")
+            end
+            
+            -- Check keystone info
+            if C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo then
+                local activeKeystoneLevel, activeAffixIDs, wasActiveKeystoneCharged = C_ChallengeMode.GetActiveKeystoneInfo()
+                print("  Keystone Level: " .. tostring(activeKeystoneLevel))
+                print("  Keystone Charged: " .. tostring(wasActiveKeystoneCharged))
+                if activeAffixIDs and #activeAffixIDs > 0 then
+                    print("  Active Affixes: " .. #activeAffixIDs .. " affixes")
+                end
+            else
+                print("  Keystone API: not available")
+            end
+            
+            -- Final mythic+ determination
+            local isMythicPlus = false
+            if instanceType == "party" then
+                if C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
+                    local activeChallengeMapID = C_ChallengeMode.GetActiveChallengeMapID()
+                    isMythicPlus = (activeChallengeMapID ~= nil)
+                else
+                    if C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo then
+                        local activeKeystoneLevel = C_ChallengeMode.GetActiveKeystoneInfo()
+                        isMythicPlus = (activeKeystoneLevel and activeKeystoneLevel > 0)
+                    end
+                end
+            end
+            print("  Final M+ Detection: " .. tostring(isMythicPlus))
+        end
+        
         for spellID, data in pairs(MattOOCDB.trackedSpells) do
             local posStr = data.pos and string.format("(%s, %.0f, %.0f)", data.pos.point, data.pos.x, data.pos.y) or "default"
             print("  " .. data.name .. " (" .. spellID .. "): pos=" .. posStr)
@@ -1008,10 +1209,11 @@ EventFrame:SetScript("OnEvent", function(self, event, ...)
             CreateSpellFrame(spellID)
         end
         inCombat = InCombatLockdown()
-        C_Timer.After(2, UpdateWarningDisplay)
+        C_Timer.After(3, UpdateWarningDisplay)
     elseif event == "PLAYER_ENTERING_WORLD" then
         inCombat = InCombatLockdown()
-        C_Timer.After(1, UpdateWarningDisplay)
+        C_Timer.After(2, UpdateWarningDisplay)
+        C_Timer.After(2, UpdateMythicPlusNotification)
     elseif event == "PLAYER_REGEN_DISABLED" then
         inCombat = true
         for _, frame in pairs(spellFrames) do
@@ -1019,19 +1221,53 @@ EventFrame:SetScript("OnEvent", function(self, event, ...)
         end
     elseif event == "PLAYER_REGEN_ENABLED" then
         inCombat = false
-        C_Timer.After(0.5, UpdateWarningDisplay)
+        -- Give extra time in instances for auras to properly register
+        local inInstance, instanceType = IsInInstance()
+        local delay = (inInstance and (instanceType == "party" or instanceType == "raid" or instanceType == "scenario")) and 2.0 or 0.5
+        C_Timer.After(delay, UpdateWarningDisplay)
     elseif event == "UNIT_PET" then
         local unit = ...
         if unit == "player" then
-            C_Timer.After(0.1, UpdateWarningDisplay)
+            C_Timer.After(0.2, UpdateWarningDisplay)
         end
     elseif event == "UNIT_AURA" then
         local unit = ...
-        if unit == "player" then
-            C_Timer.After(0.1, UpdateWarningDisplay)
+        -- Only process aura updates outside of combat
+        if unit == "player" and not InCombatLockdown() then
+            -- Throttle updates in instances to avoid spam
+            local inInstance, instanceType = IsInInstance()
+            local delay = (inInstance and (instanceType == "party" or instanceType == "raid" or instanceType == "scenario")) and 0.5 or 0.1
+            C_Timer.After(delay, UpdateWarningDisplay)
         end
+    elseif event == "CHALLENGE_MODE_START" then
+        keystoneActive = true
+        -- Hide all frames during keystone
+        for _, frame in pairs(spellFrames) do
+            frame:Hide()
+        end
+        UpdateMythicPlusNotification()
+        print("|cff00ff00MattOOC:|r Keystone started - reminders disabled")
+    elseif event == "CHALLENGE_MODE_COMPLETED" then
+        keystoneActive = false
+        -- Re-enable after keystone ends
+        if not InCombatLockdown() then
+            C_Timer.After(2.0, UpdateWarningDisplay)
+        end
+        UpdateMythicPlusNotification()
+        print("|cff00ff00MattOOC:|r Keystone completed - reminders re-enabled")
     elseif event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_UPDATE_RESTING" then
-        C_Timer.After(0.5, UpdateWarningDisplay)
+        C_Timer.After(1.0, UpdateWarningDisplay)
+        C_Timer.After(1.0, UpdateMythicPlusNotification)
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        -- Update when group composition changes (important for raids/M+)
+        if not InCombatLockdown() then
+            C_Timer.After(1.0, UpdateWarningDisplay)
+        end
+    elseif event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_COMPLETED" then
+        -- Mythic+ challenge mode events - update display since M+ state changed
+        if not InCombatLockdown() then
+            C_Timer.After(1.0, UpdateWarningDisplay)
+        end
     end
 end)
 
@@ -1043,6 +1279,10 @@ EventFrame:RegisterEvent("UNIT_PET")
 EventFrame:RegisterEvent("UNIT_AURA")
 EventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 EventFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
+EventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+-- Mythic+ specific events
+EventFrame:RegisterEvent("CHALLENGE_MODE_START")
+EventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 
 -- Minimap Icon using LibDBIcon
 local LDB = LibStub("LibDataBroker-1.1")
