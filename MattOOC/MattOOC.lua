@@ -1,5 +1,4 @@
--- MattOOC: Out of Combat Spell Reminder
--- Each spell ID is its own independent, positionable frame
+-- Matt's OOC: Out of Combat Spell Reminder
 
 local ADDON_NAME = "MattOOC"
 
@@ -9,7 +8,7 @@ local keystoneActive = false
 local ConfigFrame = nil
 local MythicPlusNotificationFrame = nil
 local spellRows = {}
-local spellFrames = {} -- Individual frames per spell ID
+local spellFrames = {} 
 local isUnlocked = false
 
 -- Initialize saved variables
@@ -542,7 +541,7 @@ local function CreateMythicPlusNotificationFrame()
     text:SetPoint("RIGHT", frame, "RIGHT", -35, 0)
     text:SetTextColor(0.9, 0.9, 1, 1)
     text:SetJustifyH("LEFT")
-    text:SetText("MattOOC: Buff tracking will be disabled when M+ keystone starts due to WoW API limitations.")
+    text:SetText("Matt's OOC: Buff tracking will be disabled when M+ keystone starts due to WoW API limitations.")
     
     -- Close button
     local closeBtn = CreateFrame("Button", nil, frame)
@@ -660,9 +659,9 @@ local function ToggleUnlock()
     end
     
     if isUnlocked then
-        print("|cff00ff00MattOOC:|r All frames UNLOCKED - drag each to position")
+        print("|cff00ff00Matt's OOC:|r All frames UNLOCKED - drag each to position")
     else
-        print("|cff00ff00MattOOC:|r All frames LOCKED - positions saved")
+        print("|cff00ff00Matt's OOC:|r All frames LOCKED - positions saved")
         UpdateWarningDisplay()
     end
 end
@@ -763,7 +762,7 @@ local function RefreshSpellList()
                 spellFrames[spellID]:ClearAllPoints()
                 spellFrames[spellID]:SetPoint(defaultPos.point, UIParent, defaultPos.point, defaultPos.x, defaultPos.y)
             end
-            print("|cff00ff00MattOOC:|r Reset position for " .. data.name)
+            print("|cff00ff00Matt's OOC:|r Reset position for " .. data.name)
         end)
         
         -- Row 2: Checkboxes with spacing
@@ -963,7 +962,7 @@ local function CreateConfigFrame()
     local _, playerClass = UnitClass("player")
     local classColor = RAID_CLASS_COLORS[playerClass] or { r = 1, g = 1, b = 1 }
     local colorHex = string.format("|cff%02x%02x%02x", classColor.r * 255, classColor.g * 255, classColor.b * 255)
-    title:SetText("|cff00ff00MattOOC|r - " .. colorHex .. playerName .. "|r")
+    title:SetText("|cffffff00Matt's OOC|r - " .. colorHex .. playerName .. "|r")
     
     local closeBtn = CreateFrame("Button", nil, titleBar)
     closeBtn:SetSize(20, 20)
@@ -981,8 +980,8 @@ local function CreateConfigFrame()
     descBar:SetBackdropColor(0.1, 0.1, 0.1, 1)
     
     local descText = descBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    descText:SetPoint("CENTER", descBar, "CENTER", 0, 0)
-    descText:SetText("|cffaaaaaaTrack missing buffs & pets. Reminders only show |cff00ff00OUT OF COMBAT|r|cffaaaaaa.|r")
+    descText:SetPoint("CENTER", descBar, "CENTER", 0, -4)
+    descText:SetText("|cffffffffTrack missing buffs & pets.|r |cffffffffReminders only show |cff00ff00OUT OF COMBAT|r|cffffffff.|r")
     
     -- Options section (Move Reminders + Minimap)
     local optionsSection = CreateFrame("Frame", nil, ConfigFrame, "BackdropTemplate")
@@ -1069,7 +1068,7 @@ local function CreateConfigFrame()
             -- Try to look up by name
             spellID, spellName = GetSpellIDByName(inputText)
             if not spellID then
-                print("|cffff0000MattOOC:|r Could not find spell: " .. inputText)
+                print("|cffff0000Matt's OOC:|r Could not find spell: " .. inputText)
                 return
             end
         end
@@ -1098,7 +1097,7 @@ local function CreateConfigFrame()
             petCheckAdd:SetChecked(false)
             RefreshSpellList()
             UpdateSpellFrame(spellID)
-            print("|cff00ff00MattOOC:|r Added " .. spellName)
+            print("|cff00ff00Matt's OOC:|r Added " .. spellName)
         end
     end)
     inputBox:SetScript("OnEnterPressed", function() addBtn:Click() end)
@@ -1132,7 +1131,7 @@ SlashCmdList["MATTOOC"] = function(msg)
             ConfigFrame.unlockCheck:SetChecked(isUnlocked)
         end
     elseif msg == "test" then
-        print("|cff00ff00MattOOC Debug:|r")
+        print("|cff00ff00Matt's OOC Debug:|r")
         print("  inCombat: " .. tostring(inCombat))
         print("  IsResting: " .. tostring(IsResting()))
         print("  HasPet: " .. tostring(HasPet()))
@@ -1246,7 +1245,7 @@ EventFrame:SetScript("OnEvent", function(self, event, ...)
             frame:Hide()
         end
         UpdateMythicPlusNotification()
-        print("|cff00ff00MattOOC:|r Keystone started - reminders disabled")
+        print("|cff00ff00Matt's OOC:|r Keystone started - reminders disabled")
     elseif event == "CHALLENGE_MODE_COMPLETED" then
         keystoneActive = false
         -- Re-enable after keystone ends
@@ -1254,7 +1253,7 @@ EventFrame:SetScript("OnEvent", function(self, event, ...)
             C_Timer.After(2.0, UpdateWarningDisplay)
         end
         UpdateMythicPlusNotification()
-        print("|cff00ff00MattOOC:|r Keystone completed - reminders re-enabled")
+        print("|cff00ff00Matt's OOC:|r Keystone completed - reminders re-enabled")
     elseif event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_UPDATE_RESTING" then
         C_Timer.After(1.0, UpdateWarningDisplay)
         C_Timer.After(1.0, UpdateMythicPlusNotification)
@@ -1288,10 +1287,10 @@ EventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 local LDB = LibStub("LibDataBroker-1.1")
 local LDBIcon = LibStub("LibDBIcon-1.0")
 
-local MattOOCLDB = LDB:NewDataObject("MattOOC", {
+local MattOOCLDB = LDB:NewDataObject("Matt's OOC", {
     type = "launcher",
-    text = "MattOOC",
-    icon = "Interface\\AddOns\\MattOOC\\Media\\mattooc",
+    text = "Matt's OOC",
+    icon = "Interface\\AddOns\\MattOOC\\Media\\oocicon.png",
     OnClick = function(self, button)
         if button == "LeftButton" then
             CreateConfigFrame()
@@ -1303,7 +1302,7 @@ local MattOOCLDB = LDB:NewDataObject("MattOOC", {
         end
     end,
     OnTooltipShow = function(tooltip)
-        tooltip:AddLine("|cff00ff00MattOOC|r")
+        tooltip:AddLine("|cff00ff00Matt's OOC|r")
         tooltip:AddLine("Out of Combat Spell Reminder")
         tooltip:AddLine(" ")
         tooltip:AddLine("|cffffffffLeft-Click:|r Open Config")
@@ -1316,7 +1315,7 @@ local minimapFrame = CreateFrame("Frame")
 minimapFrame:RegisterEvent("PLAYER_LOGIN")
 minimapFrame:SetScript("OnEvent", function()
     MattOOCDB.minimap = MattOOCDB.minimap or { hide = false }
-    LDBIcon:Register("MattOOC", MattOOCLDB, MattOOCDB.minimap)
+    LDBIcon:Register("Matt's OOC", MattOOCLDB, MattOOCDB.minimap)
 end)
 
-print("|cff00ff00MattOOC|r loaded - /mattooc to configure")
+print("|cff00ff00Matt's OOC|r loaded - /mattooc to configure")
