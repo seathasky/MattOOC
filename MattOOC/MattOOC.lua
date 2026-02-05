@@ -732,9 +732,17 @@ local function RefreshSpellList()
         local row = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
         row:SetSize(525, 125)
         row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 5, yOffset)
-        row:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-        row:SetBackdropColor(0.08, 0.08, 0.08, 0.9)
-        row:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
+        row:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1
+        })
+        row:SetBackdropColor(0.10, 0.10, 0.12, 0.94)
+        row:SetBackdropBorderColor(0.28, 0.26, 0.22, 1)
+        local rowAccent = row:CreateTexture(nil, "BORDER")
+        rowAccent:SetSize(3, 125)
+        rowAccent:SetPoint("LEFT", row, "LEFT", 0, 0)
+        rowAccent:SetColorTexture(0.5, 0.42, 0.22, 0.85)
         
         -- Row 1: Enable + Icon + Name + ID + Reset + Delete
         local enableCheck = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
@@ -997,20 +1005,26 @@ local function CreateConfigFrame()
     ConfigFrame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 2
+        edgeSize = 3
     })
-    ConfigFrame:SetBackdropColor(0.05, 0.05, 0.05, 0.95)
-    ConfigFrame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    ConfigFrame:SetBackdropColor(0.06, 0.06, 0.08, 0.97)
+    ConfigFrame:SetBackdropBorderColor(0.38, 0.34, 0.26, 1)
     
     -- Title bar
     local titleBar = CreateFrame("Frame", nil, ConfigFrame, "BackdropTemplate")
-    titleBar:SetSize(560, 28)
+    titleBar:SetSize(560, 30)
     titleBar:SetPoint("TOP", ConfigFrame, "TOP", 0, 0)
-    titleBar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    titleBar:SetBackdropColor(0.15, 0.15, 0.15, 1)
+    titleBar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1
+    })
+    titleBar:SetBackdropColor(0.14, 0.12, 0.10, 1)
+    titleBar:SetBackdropBorderColor(0.5, 0.42, 0.22, 0.9)
     
     local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("LEFT", titleBar, "LEFT", 12, 0)
+    title:SetPoint("LEFT", titleBar, "LEFT", 14, 0)
+    title:SetFont("Fonts\\FRIZQT__.TTF", 13, "OUTLINE")
     local playerName = UnitName("player") or "Unknown"
     local _, playerClass = UnitClass("player")
     local classColor = RAID_CLASS_COLORS[playerClass] or { r = 1, g = 1, b = 1 }
@@ -1027,21 +1041,27 @@ local function CreateConfigFrame()
     
     -- Description bar
     local descBar = CreateFrame("Frame", nil, ConfigFrame, "BackdropTemplate")
-    descBar:SetSize(560, 22)
+    descBar:SetSize(560, 24)
     descBar:SetPoint("TOP", titleBar, "BOTTOM", 0, 0)
     descBar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    descBar:SetBackdropColor(0.1, 0.1, 0.1, 1)
+    descBar:SetBackdropColor(0.08, 0.10, 0.08, 0.95)
     
     local descText = descBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    descText:SetPoint("CENTER", descBar, "CENTER", 0, -4)
-    descText:SetText("|cffffffffTrack missing buffs & pets.|r |cffffffffReminders only show |cff00ff00OUT OF COMBAT|r|cffffffff.|r")
+    descText:SetPoint("CENTER", descBar, "CENTER", 0, 0)
+    descText:SetTextColor(0.88, 0.88, 0.86, 1)
+    descText:SetText("Track missing buffs & pets. Reminders only show |cff44cc44OUT OF COMBAT|r.")
     
     -- Options section (vertical stack: Move Reminders, Minimap, M+ warning)
     local optionsSection = CreateFrame("Frame", nil, ConfigFrame, "BackdropTemplate")
     optionsSection:SetSize(540, 82)
-    optionsSection:SetPoint("TOP", descBar, "BOTTOM", 0, -5)
-    optionsSection:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    optionsSection:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+    optionsSection:SetPoint("TOP", descBar, "BOTTOM", 0, -6)
+    optionsSection:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1
+    })
+    optionsSection:SetBackdropColor(0.12, 0.12, 0.14, 0.92)
+    optionsSection:SetBackdropBorderColor(0.26, 0.24, 0.22, 1)
     
     local rowHeight = 26
     local leftPad = 10
@@ -1057,6 +1077,7 @@ local function CreateConfigFrame()
     end)
     local unlockLabel = optionsSection:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     unlockLabel:SetPoint("LEFT", unlockCheck, "RIGHT", 4, 0)
+    unlockLabel:SetTextColor(0.92, 0.90, 0.86, 1)
     unlockLabel:SetText("Move Reminders")
     ConfigFrame.unlockCheck = unlockCheck
     
@@ -1079,6 +1100,7 @@ local function CreateConfigFrame()
     end)
     local minimapLabel = optionsSection:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     minimapLabel:SetPoint("LEFT", minimapCheck, "RIGHT", 4, 0)
+    minimapLabel:SetTextColor(0.92, 0.90, 0.86, 1)
     minimapLabel:SetText("Show Minimap Icon")
     
     -- Row 3: Show M+ warning notification
@@ -1095,18 +1117,25 @@ local function CreateConfigFrame()
     end)
     local mplusWarningLabel = optionsSection:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mplusWarningLabel:SetPoint("LEFT", mplusWarningCheck, "RIGHT", 4, 0)
+    mplusWarningLabel:SetTextColor(0.92, 0.90, 0.86, 1)
     mplusWarningLabel:SetText("Show M+ warning notification")
     ConfigFrame.mplusWarningCheck = mplusWarningCheck
     
     -- Add section
     local addSection = CreateFrame("Frame", nil, ConfigFrame, "BackdropTemplate")
-    addSection:SetSize(540, 35)
-    addSection:SetPoint("TOP", optionsSection, "BOTTOM", 0, -5)
-    addSection:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    addSection:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
+    addSection:SetSize(540, 38)
+    addSection:SetPoint("TOP", optionsSection, "BOTTOM", 0, -6)
+    addSection:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1
+    })
+    addSection:SetBackdropColor(0.10, 0.12, 0.10, 0.92)
+    addSection:SetBackdropBorderColor(0.26, 0.24, 0.22, 1)
     
     local addLabel = addSection:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    addLabel:SetPoint("LEFT", addSection, "LEFT", 10, 0)
+    addLabel:SetPoint("LEFT", addSection, "LEFT", 12, 0)
+    addLabel:SetTextColor(0.9, 0.88, 0.82, 1)
     addLabel:SetText("Add Spell:")
     
     local inputBox = CreateFrame("EditBox", nil, addSection, "InputBoxTemplate")
@@ -1123,9 +1152,10 @@ local function CreateConfigFrame()
     petLabelAdd:SetText("Pet")
     
     local addBtn = CreateFrame("Button", nil, addSection, "UIPanelButtonTemplate")
-    addBtn:SetSize(50, 22)
-    addBtn:SetPoint("LEFT", petLabelAdd, "RIGHT", 10, 0)
+    addBtn:SetSize(52, 22)
+    addBtn:SetPoint("LEFT", petLabelAdd, "RIGHT", 12, 0)
     addBtn:SetText("Add")
+    addBtn:GetFontString():SetTextColor(1, 1, 1, 1)
     addBtn:SetScript("OnClick", function()
         local inputText = inputBox:GetText():trim()
         if inputText == "" then return end
@@ -1175,10 +1205,11 @@ local function CreateConfigFrame()
     end)
     inputBox:SetScript("OnEnterPressed", function() addBtn:Click() end)
     
-    -- Scroll frame
+    -- Scroll frame (anchored so it stays inside the config panel; scrollbar won't overflow)
     local scrollFrame = CreateFrame("ScrollFrame", nil, ConfigFrame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetSize(535, 330)
+    scrollFrame:SetWidth(535)
     scrollFrame:SetPoint("TOP", addSection, "BOTTOM", -10, -10)
+    scrollFrame:SetPoint("BOTTOM", ConfigFrame, "BOTTOM", 0, 10)
     
     local scrollChild = CreateFrame("Frame", nil, scrollFrame)
     scrollChild:SetSize(525, 330)

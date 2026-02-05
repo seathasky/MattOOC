@@ -2,7 +2,7 @@
 ## Title: Matt's OOC
 ## Notes: Out of Combat Spell Reminder - Track missing buffs & pets
 ## Author: Matt
-## Version: 1.5
+## Version: 1.6
 ## IconTexture: Interface\AddOns\MattOOC\Media\oocicon.png
 ## SavedVariablesPerCharacter: MattOOCDB
 
