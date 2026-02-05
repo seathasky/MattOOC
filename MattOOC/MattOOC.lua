@@ -16,6 +16,9 @@ local function InitDB()
     MattOOCDB = MattOOCDB or {}
     MattOOCDB.trackedSpells = MattOOCDB.trackedSpells or {}
     MattOOCDB.minimap = MattOOCDB.minimap or { hide = false }
+    if MattOOCDB.hideMPlusBuffWarning == nil then
+        MattOOCDB.hideMPlusBuffWarning = false
+    end
     
     -- Migrate old entries
     local yOffset = 0
@@ -513,7 +516,7 @@ local function CreateMythicPlusNotificationFrame()
     if MythicPlusNotificationFrame then return MythicPlusNotificationFrame end
     
     local frame = CreateFrame("Frame", "MattOOCMythicPlusNotification", UIParent, "BackdropTemplate")
-    frame:SetSize(500, 40)
+    frame:SetSize(500, 70)
     frame:SetPoint("TOP", UIParent, "TOP", 0, -80)
     frame:SetFrameStrata("HIGH")
     frame:Hide()
@@ -530,23 +533,62 @@ local function CreateMythicPlusNotificationFrame()
     -- Icon
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetSize(24, 24)
-    icon:SetPoint("LEFT", frame, "LEFT", 10, 0)
+    icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -12)
     icon:SetTexture("Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew")
     icon:SetVertexColor(0.4, 0.6, 1, 1)
     
     -- Text
     local text = frame:CreateFontString(nil, "OVERLAY")
     text:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
-    text:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    text:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, 0)
     text:SetPoint("RIGHT", frame, "RIGHT", -35, 0)
     text:SetTextColor(0.9, 0.9, 1, 1)
     text:SetJustifyH("LEFT")
+    text:SetWordWrap(true)
+    text:SetNonSpaceWrap(false)
     text:SetText("Matt's OOC: Buff tracking will be disabled when M+ keystone starts due to WoW API limitations.")
+    
+    -- "Never show this again" checkbox
+    local check = CreateFrame("CheckButton", nil, frame, "ChatConfigCheckButtonTemplate")
+    check:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 8)
+    check:SetHitRectInsets(0, -100, 0, 0)
+    local label = check.text or check:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if not check.text then
+        label:SetPoint("LEFT", check, "RIGHT", 4, 0)
+        check.text = label
+    end
+    label:SetText("Never show this again")
+    label:SetTextColor(0.85, 0.85, 0.9, 1)
+    frame.neverShowAgainCheck = check
+    check:SetScript("OnClick", function(self)
+        if self:GetChecked() then
+            StaticPopupDialogs["MATTOOC_HIDE_MPLUS_WARNING"] = {
+                text = "Hide this M+ notification for this character? You will not see it again when entering Mythic+ dungeons. You can turn it back on later from addon settings if you change your mind.",
+                button1 = "Yes, hide it",
+                button2 = "Cancel",
+                OnAccept = function()
+                    MattOOCDB.hideMPlusBuffWarning = true
+                    frame:Hide()
+                end,
+                OnCancel = function()
+                    self:SetChecked(false)
+                    MattOOCDB.hideMPlusBuffWarning = false
+                end,
+                timeout = 0,
+                whileDead = true,
+                hideOnEscape = true,
+                preferredIndex = 3,
+            }
+            StaticPopup_Show("MATTOOC_HIDE_MPLUS_WARNING")
+        else
+            MattOOCDB.hideMPlusBuffWarning = false
+        end
+    end)
     
     -- Close button
     local closeBtn = CreateFrame("Button", nil, frame)
     closeBtn:SetSize(20, 20)
-    closeBtn:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+    closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -12)
     closeBtn:SetNormalTexture("Interface\\Buttons\\UI-StopButton")
     closeBtn:SetHighlightTexture("Interface\\Buttons\\UI-StopButton")
     closeBtn:GetHighlightTexture():SetAlpha(0.4)
@@ -566,11 +608,19 @@ local function CreateMythicPlusNotificationFrame()
     return frame
 end
 
--- Update M+ notification visibility
+-- Update M+ notification visibility (call after changing hideMPlusBuffWarning to apply on the fly)
 local function UpdateMythicPlusNotification()
+    if MattOOCDB.hideMPlusBuffWarning then
+        if MythicPlusNotificationFrame then
+            MythicPlusNotificationFrame:Hide()
+        end
+        return
+    end
     local inInstance, instanceType = IsInInstance()
     local frame = CreateMythicPlusNotificationFrame()
-    
+    if frame.neverShowAgainCheck then
+        frame.neverShowAgainCheck:SetChecked(false)
+    end
     -- Only show in Mythic/Mythic+ dungeons
     if inInstance and instanceType == "party" then
         local _, _, difficulty = GetInstanceInfo()
@@ -929,6 +979,9 @@ local function CreateConfigFrame()
     if ConfigFrame then
         ConfigFrame:Show()
         RefreshSpellList()
+        if ConfigFrame.mplusWarningCheck then
+            ConfigFrame.mplusWarningCheck:SetChecked(not MattOOCDB.hideMPlusBuffWarning)
+        end
         return
     end
     
@@ -983,31 +1036,34 @@ local function CreateConfigFrame()
     descText:SetPoint("CENTER", descBar, "CENTER", 0, -4)
     descText:SetText("|cffffffffTrack missing buffs & pets.|r |cffffffffReminders only show |cff00ff00OUT OF COMBAT|r|cffffffff.|r")
     
-    -- Options section (Move Reminders + Minimap)
+    -- Options section (vertical stack: Move Reminders, Minimap, M+ warning)
     local optionsSection = CreateFrame("Frame", nil, ConfigFrame, "BackdropTemplate")
-    optionsSection:SetSize(540, 35)
+    optionsSection:SetSize(540, 82)
     optionsSection:SetPoint("TOP", descBar, "BOTTOM", 0, -5)
     optionsSection:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
     optionsSection:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
     
-    -- Move Reminders checkbox
+    local rowHeight = 26
+    local leftPad = 10
+    
+    -- Row 1: Move Reminders
     local unlockCheck = CreateFrame("CheckButton", nil, optionsSection, "UICheckButtonTemplate")
     unlockCheck:SetSize(20, 20)
-    unlockCheck:SetPoint("LEFT", optionsSection, "LEFT", 10, 0)
+    unlockCheck:SetPoint("TOPLEFT", optionsSection, "TOPLEFT", leftPad, -8)
     unlockCheck:SetChecked(isUnlocked)
     unlockCheck:SetScript("OnClick", function(self)
         ToggleUnlock()
         self:SetChecked(isUnlocked)
     end)
     local unlockLabel = optionsSection:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    unlockLabel:SetPoint("LEFT", unlockCheck, "RIGHT", 2, 0)
+    unlockLabel:SetPoint("LEFT", unlockCheck, "RIGHT", 4, 0)
     unlockLabel:SetText("Move Reminders")
     ConfigFrame.unlockCheck = unlockCheck
     
-    -- Minimap checkbox
+    -- Row 2: Show Minimap Icon
     local minimapCheck = CreateFrame("CheckButton", nil, optionsSection, "UICheckButtonTemplate")
     minimapCheck:SetSize(20, 20)
-    minimapCheck:SetPoint("LEFT", unlockLabel, "RIGHT", 20, 0)
+    minimapCheck:SetPoint("TOPLEFT", optionsSection, "TOPLEFT", leftPad, -8 - rowHeight)
     MattOOCDB.minimap = MattOOCDB.minimap or { hide = false }
     minimapCheck:SetChecked(not MattOOCDB.minimap.hide)
     minimapCheck:SetScript("OnClick", function(self)
@@ -1022,8 +1078,25 @@ local function CreateConfigFrame()
         end
     end)
     local minimapLabel = optionsSection:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    minimapLabel:SetPoint("LEFT", minimapCheck, "RIGHT", 2, 0)
+    minimapLabel:SetPoint("LEFT", minimapCheck, "RIGHT", 4, 0)
     minimapLabel:SetText("Show Minimap Icon")
+    
+    -- Row 3: Show M+ warning notification
+    local mplusWarningCheck = CreateFrame("CheckButton", nil, optionsSection, "UICheckButtonTemplate")
+    mplusWarningCheck:SetSize(20, 20)
+    mplusWarningCheck:SetPoint("TOPLEFT", optionsSection, "TOPLEFT", leftPad, -8 - rowHeight * 2)
+    mplusWarningCheck:SetChecked(not MattOOCDB.hideMPlusBuffWarning)
+    mplusWarningCheck:SetScript("OnClick", function(self)
+        MattOOCDB.hideMPlusBuffWarning = not self:GetChecked()
+        if not MattOOCDB.hideMPlusBuffWarning and MythicPlusNotificationFrame and MythicPlusNotificationFrame.neverShowAgainCheck then
+            MythicPlusNotificationFrame.neverShowAgainCheck:SetChecked(false)
+        end
+        UpdateMythicPlusNotification()
+    end)
+    local mplusWarningLabel = optionsSection:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mplusWarningLabel:SetPoint("LEFT", mplusWarningCheck, "RIGHT", 4, 0)
+    mplusWarningLabel:SetText("Show M+ warning notification")
+    ConfigFrame.mplusWarningCheck = mplusWarningCheck
     
     -- Add section
     local addSection = CreateFrame("Frame", nil, ConfigFrame, "BackdropTemplate")
@@ -1129,6 +1202,9 @@ SlashCmdList["MATTOOC"] = function(msg)
         ToggleUnlock()
         if ConfigFrame and ConfigFrame.unlockCheck then
             ConfigFrame.unlockCheck:SetChecked(isUnlocked)
+        end
+        if ConfigFrame and ConfigFrame.mplusWarningCheck then
+            ConfigFrame.mplusWarningCheck:SetChecked(not MattOOCDB.hideMPlusBuffWarning)
         end
     elseif msg == "test" then
         print("|cff00ff00Matt's OOC Debug:|r")
